@@ -1,0 +1,8 @@
+# BERT의 토크나이저로 문장을 토큰으로 분리
+tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased', do_lower_case=False)
+tokens = tokenizer.tokenize('우리 사이엔 낮은 담이 있어 서로의 진심을 안을 수가 없어요')
+print(tokens)
+
+tokenized_texts = [tokenizer.tokenize(sent) for sent in sentences]
+print(sentences[0])
+print(tokenized_texts[0])
