@@ -588,4 +588,14 @@ def preprocess_sentence(sentence):
   return sentence
   
   
-output = predict("******")
+output = predict("오늘은 소나기가 올거 같아")
+Input: 오늘은 소나기가 올거 같아
+Output: 마음의 준비를 하는게 좋을지도 몰라요 .
+
+output = predict("오늘은 조금 피곤하네")
+Input: 오늘은 조금 피곤하네
+Output: 쪼그만 아파하고 괜찮아지세요 .
+
+output = predict("공부하기 싫다")
+Input: 공부하기 싫다
+Output: 잠시 쉬어도 돼요 .
