@@ -181,27 +181,20 @@ print(create_padding_mask(tf.constant([[1, 21, 777, 0, 0]])))
 
 def encoder_layer(dff, d_model, num_heads, dropout, name="encoder_layer"):
   inputs = tf.keras.Input(shape=(None, d_model), name="inputs")
-
-  # 인코더는 패딩 마스크 사용
   padding_mask = tf.keras.Input(shape=(1, 1, None), name="padding_mask")
 
-  # 멀티-헤드 어텐션 (첫번째 서브층 / 셀프 어텐션)
   attention = MultiHeadAttention(
       d_model, num_heads, name="attention")({
           'query': inputs, 'key': inputs, 'value': inputs, # Q = K = V
-          'mask': padding_mask # 패딩 마스크 사용
-      })
+          'mask': padding_mask})
 
-  # 드롭아웃 + 잔차 연결과 층 정규화
   attention = tf.keras.layers.Dropout(rate=dropout)(attention)
   attention = tf.keras.layers.LayerNormalization(
       epsilon=1e-6)(inputs + attention)
 
-  # 포지션 와이즈 피드 포워드 신경망 (두번째 서브층)
   outputs = tf.keras.layers.Dense(units=dff, activation='relu')(attention)
   outputs = tf.keras.layers.Dense(units=d_model)(outputs)
 
-  # 드롭아웃 + 잔차 연결과 층 정규화
   outputs = tf.keras.layers.Dropout(rate=dropout)(outputs)
   outputs = tf.keras.layers.LayerNormalization(
       epsilon=1e-6)(attention + outputs)
@@ -250,18 +243,15 @@ def decoder_layer(dff, d_model, num_heads, dropout, name="decoder_layer"):
   inputs = tf.keras.Input(shape=(None, d_model), name="inputs")
   enc_outputs = tf.keras.Input(shape=(None, d_model), name="encoder_outputs")
 
-  # 룩어헤드 마스크(첫번째 서브층)
   look_ahead_mask = tf.keras.Input(
       shape=(1, None, None), name="look_ahead_mask")
 
-  # 패딩 마스크(두번째 서브층)
   padding_mask = tf.keras.Input(shape=(1, 1, None), name='padding_mask')
 
-  # 멀티-헤드 어텐션 (첫번째 서브층 / 마스크드 셀프 어텐션)
   attention1 = MultiHeadAttention(
       d_model, num_heads, name="attention_1")(inputs={
           'query': inputs, 'key': inputs, 'value': inputs, # Q = K = V
-          'mask': look_ahead_mask # 룩어헤드 마스크
+          'mask': look_ahead_mask
       })
 
   # 잔차 연결과 층 정규화
@@ -328,38 +318,30 @@ def transformer(vocab_size, num_layers, dff,
                 d_model, num_heads, dropout,
                 name="transformer"):
 
-  # 인코더의 입력
   inputs = tf.keras.Input(shape=(None,), name="inputs")
 
-  # 디코더의 입력
   dec_inputs = tf.keras.Input(shape=(None,), name="dec_inputs")
 
-  # 인코더의 패딩 마스크
   enc_padding_mask = tf.keras.layers.Lambda(
       create_padding_mask, output_shape=(1, 1, None),
       name='enc_padding_mask')(inputs)
 
-  # 디코더의 룩어헤드 마스크(첫번째 서브층)
-  look_ahead_mask = tf.keras.layers.Lambda(
+ look_ahead_mask = tf.keras.layers.Lambda(
       create_look_ahead_mask, output_shape=(1, None, None),
       name='look_ahead_mask')(dec_inputs)
 
-  # 디코더의 패딩 마스크(두번째 서브층)
   dec_padding_mask = tf.keras.layers.Lambda(
       create_padding_mask, output_shape=(1, 1, None),
       name='dec_padding_mask')(inputs)
 
-  # 인코더의 출력은 enc_outputs. 디코더로 전달된다.
   enc_outputs = encoder(vocab_size=vocab_size, num_layers=num_layers, dff=dff,
       d_model=d_model, num_heads=num_heads, dropout=dropout,
-  )(inputs=[inputs, enc_padding_mask]) # 인코더의 입력은 입력 문장과 패딩 마스크
+  )(inputs=[inputs, enc_padding_mask]) 
 
-  # 디코더의 출력은 dec_outputs. 출력층으로 전달된다.
   dec_outputs = decoder(vocab_size=vocab_size, num_layers=num_layers, dff=dff,
       d_model=d_model, num_heads=num_heads, dropout=dropout,
   )(inputs=[dec_inputs, enc_outputs, look_ahead_mask, dec_padding_mask])
 
-  # 다음 단어 예측을 위한 출력층
   outputs = tf.keras.layers.Dense(units=vocab_size, name="outputs")(dec_outputs)
 
   return tf.keras.Model(inputs=[inputs, dec_inputs], outputs=outputs, name=name)
@@ -430,8 +412,6 @@ train_data.head()
 
 questions = []
 for sentence in train_data['Q']:
-    # 구두점에 대해서 띄어쓰기
-    # ex) 12시 땡! -> 12시 땡 !
     sentence = re.sub(r"([?.!,])", r" \1 ", sentence)
     sentence = sentence.strip()
     questions.append(sentence)
@@ -446,15 +426,11 @@ for sentence in train_data['A']:
     answers.append(sentence)    
  
  
-# 서브워드텍스트인코더를 사용하여 질문, 답변 데이터로부터 단어 집합(Vocabulary) 생성
 tokenizer = tfds.deprecated.text.SubwordTextEncoder.build_from_corpus(
     questions + answers, target_vocab_size=2**13)
     
-
-# 시작 토큰과 종료 토큰에 대한 정수 부여.
 START_TOKEN, END_TOKEN = [tokenizer.vocab_size], [tokenizer.vocab_size + 1]
 
-# 시작 토큰과 종료 토큰을 고려하여 단어 집합의 크기를 + 2
 VOCAB_SIZE = tokenizer.vocab_size + 2
 
 
@@ -480,23 +456,18 @@ print ('기존 문장: {}'.format(original_string))
 for ts in tokenized_string:
   print ('{} ----> {}'.format(ts, tokenizer.decode([ts])))
   
-  
-# 최대 길이를 40으로 정의
 MAX_LENGTH = 40
 
-# 토큰화 / 정수 인코딩 / 시작 토큰과 종료 토큰 추가 / 패딩
 def tokenize_and_filter(inputs, outputs):
   tokenized_inputs, tokenized_outputs = [], []
 
   for (sentence1, sentence2) in zip(inputs, outputs):
-    # encode(토큰화 + 정수 인코딩), 시작 토큰과 종료 토큰 추가
     sentence1 = START_TOKEN + tokenizer.encode(sentence1) + END_TOKEN
     sentence2 = START_TOKEN + tokenizer.encode(sentence2) + END_TOKEN
 
     tokenized_inputs.append(sentence1)
     tokenized_outputs.append(sentence2)
 
-  # 패딩
   tokenized_inputs = tf.keras.preprocessing.sequence.pad_sequences(
       tokenized_inputs, maxlen=MAX_LENGTH, padding='post')
   tokenized_outputs = tf.keras.preprocessing.sequence.pad_sequences(
@@ -520,16 +491,12 @@ print(answers[0])
 BATCH_SIZE = 64
 BUFFER_SIZE = 20000
 
-# 디코더의 실제값 시퀀스에서는 시작 토큰을 제거해야 한다.
 dataset = tf.data.Dataset.from_tensor_slices((
-    {
-        'inputs': questions,
-        'dec_inputs': answers[:, :-1] # 디코더의 입력. 마지막 패딩 토큰이 제거된다.
-    },
-    {
-        'outputs': answers[:, 1:]  # 맨 처음 토큰이 제거된다. 다시 말해 시작 토큰이 제거된다.
-    },
-))
+    {   'inputs': questions,
+        'dec_inputs': answers[:, :-1] 
+    },    {
+        'outputs': answers[:, 1:] 
+    },))
 
 dataset = dataset.cache()
 dataset = dataset.shuffle(BUFFER_SIZE)
@@ -567,13 +534,11 @@ optimizer = tf.keras.optimizers.Adam(
     learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
 
 def accuracy(y_true, y_pred):
-  # 레이블의 크기는 (batch_size, MAX_LENGTH - 1)
+  (batch_size, MAX_LENGTH - 1)
   y_true = tf.reshape(y_true, shape=(-1, MAX_LENGTH - 1))
   return tf.keras.metrics.sparse_categorical_accuracy(y_true, y_pred)
 
 model.compile(optimizer=optimizer, loss=loss_function, metrics=[accuracy])
-
-
 
 EPOCHS = 50
 model.fit(dataset, epochs=EPOCHS)
